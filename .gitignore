@@ -1,0 +1,6 @@
+logs
+.lein-failures
+.lein-env
+checkouts
+pom.xml
+target
