@@ -22,14 +22,41 @@
   (let [tx @(d/transact conn [txnmap])]
     (d/resolve-tempid (d/db conn) (:tempids tx) (:db/id txnmap))))
 
-(defn refresh-db [db-uri schema-files]
+(defn transact-schema-files
+  [conn schema-files]
+  (doseq [schema-file schema-files]
+    @(d/transact conn (read-string (slurp (resource schema-file))))))
+
+(defn refresh-db
+  [db-uri schema-files]
   (do
     (d/delete-database db-uri)
     (d/create-database db-uri)
     (let [conn (d/connect db-uri)]
-      (doseq [schema-file schema-files]
-        @(d/transact conn (read-string (slurp (resource schema-file)))))
+      (transact-schema-files conn schema-files)
       conn)))
+
+(defn transact-user-schema-attribute
+  [conn attr-ident]
+  @(d/transact conn [{:db/id #db/id[:db.part/db]
+                      :db/ident attr-ident
+                      :db/valueType :db.type/long
+                      :db/cardinality :db.cardinality/one
+                      :db/doc "The user schema version number."
+                      :db.install/_attribute :db.part/db}]))
+
+(defn get-user-schema-version
+  [conn user-schema-attr-name]
+  (let [result (d/q (format "[:find ?verval :in $ :where [?ver %s ?verval]]"
+                            user-schema-attr-name)
+                    (d/db conn))]
+    (when (> (count result) 0)
+      (ffirst result))))
+
+(defn transact-user-schema-version
+  [conn partition user-schema-attr-name val]
+  @(d/transact conn [{:db/id (d/tempid partition)
+                      user-schema-attr-name val}]))
 
 (defn entity-for-parent-by-id
   [conn parent-entid entity-entid parent-attr]
