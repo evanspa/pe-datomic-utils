@@ -45,18 +45,26 @@
                       :db/doc "The user schema version number."
                       :db.install/_attribute :db.part/db}]))
 
+(defn transact-partition
+  [conn partition]
+  @(d/transact conn [{:db/id #db/id[:db.part/db -1]
+                      :db/ident partition}
+                     [:db/add :db.part/db :db.install/partition #db/id[:db.part/db -1]]]))
+
 (defn get-user-schema-version
   [conn user-schema-attr-name]
-  (let [result (d/q (format "[:find ?verval :in $ :where [?ver %s ?verval]]"
+  (let [result (d/q (format "[:find ?ver ?verval :in $ :where [?ver %s ?verval]]"
                             user-schema-attr-name)
                     (d/db conn))]
+
     (when (> (count result) 0)
-      (ffirst result))))
+      (first result))))
 
 (defn transact-user-schema-version
   [conn partition user-schema-attr-name val]
-  @(d/transact conn [{:db/id (d/tempid partition)
-                      user-schema-attr-name val}]))
+  (let [existing-ver (get-user-schema-version conn user-schema-attr-name)
+        ver-entid (if existing-ver (first existing-ver) (d/tempid partition))]
+    @(d/transact conn [{:db/id ver-entid user-schema-attr-name val}])))
 
 (defn entity-for-parent-by-id
   [conn parent-entid entity-entid parent-attr]
