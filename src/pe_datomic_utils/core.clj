@@ -47,9 +47,9 @@
 
 (defn transact-partition
   [conn partition]
-  @(d/transact conn [{:db/id #db/id[:db.part/db -1]
-                      :db/ident partition}
-                     [:db/add :db.part/db :db.install/partition #db/id[:db.part/db -1]]]))
+  @(d/transact conn [{:db/id (d/tempid :db.part/db)
+                      :db/ident partition
+                      :db.install/_partition :db.part/db}]))
 
 (defn get-user-schema-version
   [conn user-schema-attr-name]
