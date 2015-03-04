@@ -4,7 +4,6 @@
   :license {:name "MIT"
             :url "http://opensource.org/licenses/MIT"}
   :plugins [[lein-pprint "1.1.2"]
-            [lein-marginalia "0.8.0"]
             [codox "0.8.10"]]
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [org.clojure/tools.logging "0.3.1"]
@@ -19,9 +18,11 @@
                  [org.clojure/tools.nrepl "0.2.7"]]
   :resource-paths ["resources"]
   :profiles {:dev {:source-paths ["dev"]  ;ensures 'user.clj' gets auto-loaded
-                   :plugins [[cider/cider-nrepl "0.9.0-SNAPSHOT"]]
+                   :plugins [[cider/cider-nrepl "0.8.2"]]
                    :dependencies [[org.clojure/tools.namespace "0.2.7"]
                                   [org.clojure/java.classpath "0.2.2"]
                                   [org.clojure/data.json "0.2.5"]]
                    :resource-paths ["test-resources"]}
-             :test {:resource-paths ["test-resources"]}})
+             :test {:resource-paths ["test-resources"]}}
+  :repositories [["releases" {:url "https://clojars.org/repo"
+                              :creds :gpg}]])
