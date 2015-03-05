@@ -5,3 +5,4 @@ checkouts
 pom.xml
 target
 .nrepl-port
+pom.xml.asc
