@@ -4,3 +4,4 @@ logs
 checkouts
 pom.xml
 target
+.nrepl-port
