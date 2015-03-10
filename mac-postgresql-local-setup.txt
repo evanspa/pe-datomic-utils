@@ -17,7 +17,7 @@ createuser -s postgres
 
 5. To get to postgres shell (accessing the 'postgres' database instance):
 --------------------------
-psql postgres -U nbkjmov  OR
+psql postgres -U <MACHINE_USER_NAME>  OR
 psql postgres -U postgres
 
 6. To exit postgres shell:
