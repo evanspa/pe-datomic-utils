@@ -11,7 +11,7 @@
                  [ch.qos.logback/logback-classic "1.0.13"]
                  [org.slf4j/slf4j-api "1.7.5"]
                  [clj-time "0.8.0"]
-                 [com.datomic/datomic-free "0.9.5130"
+                 [com.datomic/datomic-pro "0.9.5130"
                   :exclusions [org.slf4j/slf4j-nop
                                joda-time
                                org.slf4j/slf4j-log4j12]]]
@@ -24,7 +24,8 @@
                    :dependencies [[org.clojure/tools.namespace "0.2.7"]
                                   [org.clojure/java.classpath "0.2.2"]
                                   [org.clojure/data.json "0.2.5"]
-                                  [org.clojure/tools.nrepl "0.2.7"]]
+                                  [org.clojure/tools.nrepl "0.2.7"]
+                                  [org.postgresql/postgresql "9.3-1102-jdbc41"]]
                    :resource-paths ["test-resources"]}
              :test {:resource-paths ["test-resources"]}}
   :repositories [["releases" {:url "https://clojars.org/repo"

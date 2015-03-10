@@ -94,3 +94,24 @@
     (when (and (> (count entity) 0)
                (= parent-entid (get-in entity [parent-attr :db/id])))
       [entity-entid (dissoc entity parent-attr)])))
+
+(defn change-log
+  "Returns a map with 2 keys: :updates and :deletions.  The value at each key is
+  a vector of entities that have either been updated (add/update) or delete as
+  of as-of-instant.  Each vector contains a collection of entries as maps.  The
+  parameters updated-entry-maker-fn and deleted-entry-maker-fn are used to
+  construct the maps.  updated-entry-maker-fn will be used to contruct the maps
+  to go into the :updates vector; deleted-entry-maker-fn will be used to
+  construct the maps to go into the :deletions vector.  Each of these functions
+  will receive the populated Datomic entity, and is to return a map.  Updates
+  and deletions of entities containing at least 1 attribute from attrs will be
+  included in the computation."
+  [conn
+   as-of-instant
+   attrs
+   updated-entry-maker-fn
+   deleted-entry-maker-fn]
+  (reduce (fn [change-log attr]
+            )
+          {:updates [] :deletions []}
+          attrs))

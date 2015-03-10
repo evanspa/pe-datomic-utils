@@ -1,0 +1,44 @@
+1. Install Postresql:
+--------------------------
+brew install postgresql
+
+2. Init postgresql
+--------------------------
+initdb /Users/nbkjmov/var/postgres-9.4 -E utf8
+
+3. Start postgresql
+--------------------------
+pg_ctl -D ~/var/postgres-9.4 -l ~/var/postgres-9.4/server.log start
+
+4. Create 'postgres' user to give your postgres installation a more traditional
+flavor
+--------------------------
+createuser -s postgres
+
+5. To get to postgres shell (accessing the 'postgres' database instance):
+--------------------------
+psql postgres -U nbkjmov  OR
+psql postgres -U postgres
+
+6. To exit postgres shell:
+--------------------------
+\q
+
+7. Init Datomic database
+--------------------------
+psql -f ~/Downloads/datomic-pro-0.9.5130/bin/sql/postgres-db.sql -U postgres
+psql -f ~/Downloads/datomic-pro-0.9.5130/bin/sql/postgres-table.sql -U postgres -d datomic
+psql -f ~/Downloads/datomic-pro-0.9.5130/bin/sql/postgres-user.sql -U postgres -d datomic
+
+8. Start Datomic transactor
+--------------------------
+~/Downloads/datomic-pro-0.9.5130/bin/transactor \
+-server \
+-Xms1024m \
+-Xmx1024m \
+~/Downloads/sql-transactor.properties
+
+9. To Stop postgresql:
+--------------------------
+pg_ctl -D ~/var/postgres-9.4 -l ~/var/postgres-9.4/server.log stop OR
+pg_ctl -m fast -D ~/var/postgres-9.4 -l ~/var/postgres-9.4/server.log stop
