@@ -4,7 +4,7 @@ brew install postgresql
 
 2. Init postgresql
 --------------------------
-initdb /Users/nbkjmov/var/postgres-9.4 -E utf8
+initdb ~/var/postgres-9.4 -E utf8
 
 3. Start postgresql
 --------------------------
