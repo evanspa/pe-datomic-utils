@@ -97,7 +97,7 @@
 
 (defn change-log
   "Returns a map with 2 keys: :updates and :deletions.  The value at each key is
-  a vector of entities that have either been updated (add/update) or delete as
+  a vector of entities that have either been updated (add/update) or deleted as
   of as-of-instant.  Each vector contains a collection of entries as maps.  The
   parameters updated-entry-maker-fn and deleted-entry-maker-fn are used to
   construct the maps.  updated-entry-maker-fn will be used to contruct the maps
@@ -111,7 +111,61 @@
    attrs
    updated-entry-maker-fn
    deleted-entry-maker-fn]
-  (reduce (fn [change-log attr]
-            )
-          {:updates [] :deletions []}
-          attrs))
+  (let [db (d/db conn)
+        log (d/log conn)]
+    (reduce (fn [change-log attr]
+              (let [
+                    qry '[:find ?e ?op
+                          :in ?log ?t1 ?attr $
+                          :where [(tx-ids ?log ?t1 nil) [?tx ...]]
+                          [(tx-data ?log ?tx) [[?e _ _ _ ?op]]]
+                          [$ ?e ?attr _]]
+                    results (d/q qry
+                                 log
+                                 as-of-instant
+                                 attr
+                                 db)
+                    {updates :updates} change-log]
+                (when (> (count results) 0)
+                  (assoc change-log
+                         :updates
+                         (conj updates
+                               (updated-entry-maker-fn (into {}
+                                                             (d/entity db
+                                                                       (ffirst results)))))))))
+            {:updates [] :deletions []}
+            attrs)))
+
+(defn entity-id-for-schema-attribute
+  [conn attr]
+  (let [results (d/q '[:find ?attr-ent
+                       :in $ ?attr
+                       :where [$ ?attr-ent :db/ident ?attr]]
+                     (d/db conn)
+                     attr)]
+    (when (> (count results) 0)
+      (ffirst results))))
+
+(defn datoms-of-attrs-as-of
+  [conn entid attrs as-of-inst]
+  (let [attr-entids (map #(entity-id-for-schema-attribute conn %) attrs)]
+    (let [txns (->> (seq (d/tx-range (d/log conn) as-of-inst nil))
+                    (reduce (fn [txns txn]
+                              (let [{datums :data} txn]
+                                (concat txns
+                                        (filter #(and (some #{(.a %)} attr-entids)
+                                                      (= (.e %) entid))
+                                                datums))))
+                            []))]
+      [txns attr-entids])))
+
+(defn are-attributes-retracted-as-of
+  [conn entid attrs as-of-inst]
+  (let [[datoms attr-entids] (datoms-of-attrs-as-of conn entid attrs as-of-inst)]
+    (every? identity
+            (map (fn [attr-entid]
+                   (let [datoms (filter #(= (.a %) attr-entid) datoms)
+                         last-datom (last datoms)]
+                     (when last-datom
+                       (not (.added last-datom)))))
+                 attr-entids))))
