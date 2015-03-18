@@ -95,48 +95,8 @@
                (= parent-entid (get-in entity [parent-attr :db/id])))
       [entity-entid (dissoc entity parent-attr)])))
 
-(defn change-log
-  "Returns a map with 2 keys: :updates and :deletions.  The value at each key is
-  a vector of entities that have either been updated (add/update) or deleted as
-  of as-of-instant.  Each vector contains a collection of entries as maps.  The
-  parameters updated-entry-maker-fn and deleted-entry-maker-fn are used to
-  construct the maps.  updated-entry-maker-fn will be used to contruct the maps
-  to go into the :updates vector; deleted-entry-maker-fn will be used to
-  construct the maps to go into the :deletions vector.  Each of these functions
-  will receive the populated Datomic entity, and is to return a map.  Updates
-  and deletions of entities containing at least 1 attribute from attrs will be
-  included in the computation."
-  [conn
-   as-of-instant
-   attrs
-   updated-entry-maker-fn
-   deleted-entry-maker-fn]
-  (let [db (d/db conn)
-        log (d/log conn)]
-    (reduce (fn [change-log attr]
-              (let [
-                    qry '[:find ?e ?op
-                          :in ?log ?t1 ?attr $
-                          :where [(tx-ids ?log ?t1 nil) [?tx ...]]
-                          [(tx-data ?log ?tx) [[?e _ _ _ ?op]]]
-                          [$ ?e ?attr _]]
-                    results (d/q qry
-                                 log
-                                 as-of-instant
-                                 attr
-                                 db)
-                    {updates :updates} change-log]
-                (when (> (count results) 0)
-                  (assoc change-log
-                         :updates
-                         (conj updates
-                               (updated-entry-maker-fn (into {}
-                                                             (d/entity db
-                                                                       (ffirst results)))))))))
-            {:updates [] :deletions []}
-            attrs)))
-
 (defn entity-id-for-schema-attribute
+  "Returns the entity ID of attr."
   [conn attr]
   (let [results (d/q '[:find ?attr-ent
                        :in $ ?attr
@@ -147,6 +107,9 @@
       (ffirst results))))
 
 (defn datoms-of-attrs-as-of
+  "Returns the datoms from the log where each datom's entity id matches entid
+  and its attribute entity ID is of an attribute entity ID belonging to attrs,
+  and with a transaction date as of as-of-inst."
   [conn entid attrs as-of-inst]
   (let [attr-entids (map #(entity-id-for-schema-attribute conn %) attrs)]
     (let [txns (->> (seq (d/tx-range (d/log conn) as-of-inst nil))
@@ -159,6 +122,52 @@
                             []))]
       [txns attr-entids])))
 
+(defn entities-of-attrs-as-of
+  "Returns the set of entity IDs (including retracted ones) that contains at
+  least one attribute from attrs, and exists as of as-of-inst."
+  [conn attrs as-of-inst]
+  (let [attr-entids (map #(entity-id-for-schema-attribute conn %) attrs)]
+    (let [txns (->> (seq (d/tx-range (d/log conn) as-of-inst nil))
+                    (reduce (fn [txns txn]
+                              (let [{datums :data} txn]
+                                (concat txns
+                                        (filter #(some #{(.a %)} attr-entids)
+                                                datums))))
+                            []))]
+      (distinct (map #(.e %) txns)))))
+
+(defn entities-updated-as-of
+  ([conn
+    as-of-instant
+    attrs]
+   (entities-updated-as-of conn as-of-instant attrs nil))
+  ([conn
+    as-of-instant
+    attrs
+    transform-fn]
+   (let [db (d/db conn)
+         log (d/log conn)]
+     (reduce (fn [entities attr]
+               (let [qry '[:find ?e ?op
+                           :in ?log ?t1 ?attr $
+                           :where [(tx-ids ?log ?t1 nil) [?tx ...]]
+                           [(tx-data ?log ?tx) [[?e _ _ _ ?op]]]
+                           [$ ?e ?attr _]]
+                     results (d/q qry log as-of-instant attr db)]
+                 (if (> (count results) 0)
+                   (apply conj
+                          entities
+                          (map (fn [result-tuple]
+                                 (let [user-entid (first result-tuple)
+                                       entity (into {:db/id user-entid} (d/entity db user-entid))]
+                                   (if transform-fn
+                                     (transform-fn entity)
+                                     entity)))
+                               results))
+                   entities)))
+             []
+             attrs))))
+
 (defn are-attributes-retracted-as-of
   [conn entid attrs as-of-inst]
   (let [[datoms attr-entids] (datoms-of-attrs-as-of conn entid attrs as-of-inst)]
@@ -169,3 +178,33 @@
                      (when last-datom
                        (not (.added last-datom)))))
                  attr-entids))))
+
+(defn change-log
+  "Returns a map with 2 keys: :updates and :deletions.  The value at each key is
+  a vector of entities that have either been updated (add/update) or deleted as
+  of as-of-instant.  Each vector contains a collection of entries as maps.  The
+  parameters updated-entry-maker-fn and deleted-entry-maker-fn are used to
+  construct the maps.  updated-entry-maker-fn will be used to contruct the maps
+  to go into the :updates vector; deleted-entry-maker-fn will be used to
+  construct the maps to go into the :deletions vector.  Each of these functions
+  will receive the populated Datomic entity, and is to return a map.  Updates
+  and deletions of entities containing reqd-attr will be included in the
+  computation."
+  [conn
+   as-of-instant
+   reqd-attr
+   updated-entry-maker-fn
+   deleted-entry-maker-fn]
+  {:updates (entities-updated-as-of conn as-of-instant [reqd-attr] updated-entry-maker-fn)
+   :deletions (let [ent-ids (entities-of-attrs-as-of conn [reqd-attr] as-of-instant)]
+                (reduce (fn [deleted-entities ent-id]
+                          (let [is-deleted (are-attributes-retracted-as-of conn
+                                                                           ent-id
+                                                                           [reqd-attr]
+                                                                           as-of-instant)]
+                            (if is-deleted
+                              (conj deleted-entities
+                                    (deleted-entry-maker-fn {:db/id ent-id}))
+                              deleted-entities)))
+                        []
+                        ent-ids))})
