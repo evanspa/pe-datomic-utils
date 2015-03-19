@@ -137,38 +137,37 @@
       (distinct (map #(.e %) txns)))))
 
 (defn entities-updated-as-of
+  "Returns the set of entity IDs that contain the attribute reqd-attr, and exist
+  as of as-of-inst.  If transform-fn is supplied, it will be applied against
+  each found entity."
   ([conn
-    as-of-instant
-    attrs]
-   (entities-updated-as-of conn as-of-instant attrs nil))
+    as-of-inst
+    reqd-attr]
+   (entities-updated-as-of conn as-of-inst reqd-attr nil))
   ([conn
-    as-of-instant
-    attrs
+    as-of-inst
+    reqd-attr
     transform-fn]
    (let [db (d/db conn)
          log (d/log conn)]
-     (reduce (fn [entities attr]
-               (let [qry '[:find ?e ?op
-                           :in ?log ?t1 ?attr $
-                           :where [(tx-ids ?log ?t1 nil) [?tx ...]]
-                           [(tx-data ?log ?tx) [[?e _ _ _ ?op]]]
-                           [$ ?e ?attr _]]
-                     results (d/q qry log as-of-instant attr db)]
-                 (if (> (count results) 0)
-                   (apply conj
-                          entities
-                          (map (fn [result-tuple]
-                                 (let [user-entid (first result-tuple)
-                                       entity (into {:db/id user-entid} (d/entity db user-entid))]
-                                   (if transform-fn
-                                     (transform-fn entity)
-                                     entity)))
-                               results))
-                   entities)))
-             []
-             attrs))))
+     (let [qry '[:find ?e ?op
+                 :in ?log ?t1 ?attr $
+                 :where [(tx-ids ?log ?t1 nil) [?tx ...]]
+                        [(tx-data ?log ?tx) [[?e _ _ _ ?op]]]
+                        [$ ?e ?attr _]]
+           results (d/q qry log as-of-inst reqd-attr db)]
+       (when (> (count results) 0)
+         (map (fn [result-tuple]
+                (let [user-entid (first result-tuple)
+                      entity (into {:db/id user-entid} (d/entity db user-entid))]
+                  (if transform-fn
+                    (transform-fn entity)
+                    entity)))
+              results))))))
 
 (defn are-attributes-retracted-as-of
+  "Returns true if the entity with ID entid has attributes attrs all retracted
+  as of as-of-inst.  Otherwise returns false."
   [conn entid attrs as-of-inst]
   (let [[datoms attr-entids] (datoms-of-attrs-as-of conn entid attrs as-of-inst)]
     (every? identity
@@ -182,7 +181,7 @@
 (defn change-log
   "Returns a map with 2 keys: :updates and :deletions.  The value at each key is
   a vector of entities that have either been updated (add/update) or deleted as
-  of as-of-instant.  Each vector contains a collection of entries as maps.  The
+  of as-of-inst.  Each vector contains a collection of entries as maps.  The
   parameters updated-entry-maker-fn and deleted-entry-maker-fn are used to
   construct the maps.  updated-entry-maker-fn will be used to contruct the maps
   to go into the :updates vector; deleted-entry-maker-fn will be used to
@@ -191,17 +190,17 @@
   and deletions of entities containing reqd-attr will be included in the
   computation."
   [conn
-   as-of-instant
+   as-of-inst
    reqd-attr
    updated-entry-maker-fn
    deleted-entry-maker-fn]
-  {:updates (entities-updated-as-of conn as-of-instant [reqd-attr] updated-entry-maker-fn)
-   :deletions (let [ent-ids (entities-of-attrs-as-of conn [reqd-attr] as-of-instant)]
+  {:updates (entities-updated-as-of conn as-of-inst reqd-attr updated-entry-maker-fn)
+   :deletions (let [ent-ids (entities-of-attrs-as-of conn [reqd-attr] as-of-inst)]
                 (reduce (fn [deleted-entities ent-id]
                           (let [is-deleted (are-attributes-retracted-as-of conn
                                                                            ent-id
                                                                            [reqd-attr]
-                                                                           as-of-instant)]
+                                                                           as-of-inst)]
                             (if is-deleted
                               (conj deleted-entities
                                     (deleted-entry-maker-fn {:db/id ent-id}))

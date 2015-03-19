@@ -1,7 +1,5 @@
 # pe-datomic-utils
 
-[![Build Status](https://travis-ci.org/evanspa/pe-datomic-utils.svg)](https://travis-ci.org/evanspa/pe-datomic-utils)
-
 A Clojure library of helper functions when working with Datomic.
 
 ## Documentation
