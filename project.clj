@@ -1,4 +1,4 @@
-(defproject pe-datomic-utils "0.0.5"
+(defproject pe-datomic-utils "0.0.6-SNAPSHOT"
   :description "A Clojure library of helper functions when working with Datomic."
   :url "https://github.com/evanspa/pe-datomic-utils"
   :license {:name "MIT"
