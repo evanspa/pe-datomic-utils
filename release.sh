@@ -8,5 +8,5 @@ lein doc
 git checkout gh-pages
 mv -f doc/*.html .
 git commit -am "updated docs"
-git push
+git push --set-upstream origin gh-pages
 git checkout master
