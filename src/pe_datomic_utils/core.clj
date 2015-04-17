@@ -157,22 +157,30 @@
                         [$ ?e ?attr _]]
            results (d/q qry log as-of-inst reqd-attr db)]
        (when (> (count results) 0)
-         (map (fn [result-tuple]
-                (let [user-entid (first result-tuple)
-                      entity (into {:db/id user-entid} (d/entity db user-entid))]
-                  (if transform-fn
-                    (transform-fn entity)
-                    entity)))
-              results))))))
+         (distinct (map (fn [result-tuple]
+                          (let [user-entid (first result-tuple)
+                                entity (into {:db/id user-entid} (d/entity db user-entid))]
+                            (if transform-fn
+                              (transform-fn entity)
+                              entity)))
+                        results)))))))
 
 (defn are-attributes-retracted-as-of
   "Returns true if the entity with ID entid has attributes attrs all retracted
   as of as-of-inst.  Otherwise returns false."
   [conn entid attrs as-of-inst]
-  (let [[datoms attr-entids] (datoms-of-attrs-as-of conn entid attrs as-of-inst)]
+  (let [[datoms attr-entids] (datoms-of-attrs-as-of conn entid attrs as-of-inst)
+        db (d/db conn)]
     (every? identity
             (map (fn [attr-entid]
                    (let [datoms (filter #(= (.a %) attr-entid) datoms)
+                         datoms (sort (fn [d1 d2]
+                                        (let [tx-inst-1 (:db/txInstant (d/entity db (.tx d1)))
+                                              tx-inst-2 (:db/txInstant (d/entity db (.tx d2)))]
+                                          (if (= tx-inst-1 tx-inst-2)
+                                            (compare (.added d1) (.added d2))
+                                            (compare tx-inst-1 tx-inst-2))))
+                                      datoms)
                          last-datom (last datoms)]
                      (when last-datom
                        (not (.added last-datom)))))
