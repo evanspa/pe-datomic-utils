@@ -126,7 +126,8 @@
   "Returns the set of entity IDs (including retracted ones) that contains at
   least one attribute from attrs, and exists as of as-of-inst."
   [conn attrs as-of-inst]
-  (let [attr-entids (map #(entity-id-for-schema-attribute conn %) attrs)]
+  (let [db (d/db conn)
+        attr-entids (map #(entity-id-for-schema-attribute conn %) attrs)]
     (let [txns (->> (seq (d/tx-range (d/log conn) as-of-inst nil))
                     (reduce (fn [txns txn]
                               (let [{datums :data} txn]
@@ -134,7 +135,9 @@
                                         (filter #(some #{(.a %)} attr-entids)
                                                 datums))))
                             []))]
-      (distinct (map #(.e %) txns)))))
+      (filter (fn [entid]
+                (d/entid db entid))
+              (distinct (map #(.e %) txns))))))
 
 (defn entities-updated-as-of
   "Returns the set of entity IDs that contain the attribute reqd-attr, and exist
@@ -142,28 +145,33 @@
   each found entity."
   ([conn
     as-of-inst
-    reqd-attr]
-   (entities-updated-as-of conn as-of-inst reqd-attr nil))
+    reqd-attr
+    reqd-attr-val]
+   (entities-updated-as-of conn as-of-inst reqd-attr reqd-attr-val nil))
   ([conn
     as-of-inst
     reqd-attr
+    reqd-attr-val
     transform-fn]
    (let [db (d/db conn)
          log (d/log conn)]
      (let [qry '[:find ?e ?op
-                 :in ?log ?t1 ?attr $
+                 :in ?log ?t1 ?reqd-attr ?reqd-attr-val $
                  :where [(tx-ids ?log ?t1 nil) [?tx ...]]
                         [(tx-data ?log ?tx) [[?e _ _ _ ?op]]]
-                        [$ ?e ?attr _]]
-           results (d/q qry log as-of-inst reqd-attr db)]
+                        [$ ?e ?reqd-attr ?reqd-attr-val]]
+           results (d/q qry log as-of-inst reqd-attr reqd-attr-val db)]
        (when (> (count results) 0)
-         (distinct (map (fn [result-tuple]
-                          (let [user-entid (first result-tuple)
-                                entity (into {:db/id user-entid} (d/entity db user-entid))]
-                            (if transform-fn
-                              (transform-fn entity)
-                              entity)))
-                        results)))))))
+         (->>
+          (remove nil?
+                  (map (fn [result-tuple]
+                         (let [entid (first result-tuple)
+                               entity (into {:db/id entid} (d/entity db entid))]
+                           (if transform-fn
+                             (transform-fn entity)
+                             entity)))
+                       results))
+          (distinct)))))))
 
 (defn are-attributes-retracted-as-of
   "Returns true if the entity with ID entid has attributes attrs all retracted
@@ -189,20 +197,26 @@
 (defn change-log
   "Returns a map with 2 keys: :updates and :deletions.  The value at each key is
   a vector of entities that have either been updated (add/update) or deleted as
-  of as-of-inst.  Each vector contains a collection of entries as maps.  The
-  parameters updated-entry-maker-fn and deleted-entry-maker-fn are used to
-  construct the maps.  updated-entry-maker-fn will be used to contruct the maps
-  to go into the :updates vector; deleted-entry-maker-fn will be used to
-  construct the maps to go into the :deletions vector.  Each of these functions
-  will receive the populated Datomic entity, and is to return a map.  Updates
-  and deletions of entities containing reqd-attr will be included in the
-  computation."
+  of as-of-inst.  Each vector contains a collection of entries as maps.
+  filter-fn will be invoked for each candidate entity and will return a boolean
+  indicating if it should be included in the final set. The parameters
+  updated-entry-maker-fn and deleted-entry-maker-fn are used to construct the
+  maps.  updated-entry-maker-fn will be used to contruct the maps to go into the
+  :updates vector; deleted-entry-maker-fn will be used to construct the maps to
+  go into the :deletions vector.  Each of these functions will receive the
+  populated Datomic entity, and is to return a map.  Updates and deletions of
+  entities containing reqd-attr will be included in the computation."
   [conn
    as-of-inst
    reqd-attr
+   reqd-attr-val
    updated-entry-maker-fn
    deleted-entry-maker-fn]
-  {:updates (entities-updated-as-of conn as-of-inst reqd-attr updated-entry-maker-fn)
+  {:updates (entities-updated-as-of conn
+                                    as-of-inst
+                                    reqd-attr
+                                    reqd-attr-val
+                                    updated-entry-maker-fn)
    :deletions (let [ent-ids (entities-of-attrs-as-of conn [reqd-attr] as-of-inst)]
                 (reduce (fn [deleted-entities ent-id]
                           (let [is-deleted (are-attributes-retracted-as-of conn

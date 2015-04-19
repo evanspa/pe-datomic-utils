@@ -53,6 +53,15 @@
                               :user/email "paul@example.com"}])]
     (d/resolve-tempid (d/db conn) (:tempids future) user-entid)))
 
+(defn make-user-2
+  [conn]
+  (let [user-entid (d/tempid :user)
+        future @(d/transact conn
+                            [{:db/id user-entid
+                              :user/name "Dave"
+                              :user/email "Dave@example.com"}])]
+    (d/resolve-tempid (d/db conn) (:tempids future) user-entid)))
+
 (defn make-order
   [conn user-entid name]
   (let [order-entid (d/tempid :user)
