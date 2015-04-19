@@ -61,7 +61,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Fixtures
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(use-fixtures :each (make-db-refresher-fixture-fn db-uri
+#_(use-fixtures :each (make-db-refresher-fixture-fn db-uri
                                                   conn
                                                   user-partition
                                                   user-schema-files))
@@ -69,9 +69,9 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Tests
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftest Change-Log
+#_(deftest Change-Log
   (testing "change-log functionality"
-    #_(let [t1 (.toDate (t/now))
+    (let [t1 (.toDate (t/now))
           cl (core/change-log @conn t1 :user/email "paul@ex.com" identity identity)
           updates (:updates cl)
           dels (:deletions cl)]
