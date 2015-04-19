@@ -12,7 +12,7 @@
                  [org.slf4j/slf4j-api "1.7.5"]
                  [pe-core-utils "0.0.7"]
                  [clj-time "0.8.0"]
-                 [com.datomic/datomic-pro "0.9.5130" ; need 'pro' to test log-related functions
+                 [com.datomic/datomic-free "0.9.5130" ; need 'pro' to test log-related functions
                   :exclusions [org.slf4j/slf4j-nop
                                joda-time
                                org.slf4j/slf4j-log4j12]]]
