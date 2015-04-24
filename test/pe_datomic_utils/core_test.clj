@@ -61,7 +61,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Fixtures
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-#_(use-fixtures :each (make-db-refresher-fixture-fn db-uri
+(use-fixtures :each (make-db-refresher-fixture-fn db-uri
                                                   conn
                                                   user-partition
                                                   user-schema-files))
@@ -69,26 +69,84 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Tests
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-#_(deftest Change-Log
-  (testing "change-log functionality"
+(deftest Is-Entity-Updated-Since
+  (testing "is-entity-updated-since"
+    (is (not (core/is-entity-updated-since @conn (.toDate (t/now)) 2091234)))
     (let [t1 (.toDate (t/now))
-          cl (core/change-log @conn t1 :user/email "paul@ex.com" identity identity)
-          updates (:updates cl)
-          dels (:deletions cl)]
-      (is (= 0 (count updates)))
+          p-entid (core/save-new-entity @conn
+                                        (save-new-user-txnmap user-partition
+                                                              {:user/name "Paul"
+                                                               :user/email "paul@ex.com"}))
+          t2 (.toDate (t/now))]
+      (is (core/is-entity-updated-since @conn t1 p-entid))
+      (is (not (core/is-entity-updated-since @conn t2 p-entid)))
+      @(d/transact @conn [{:db/id p-entid :user/name "Paully"}])
+      (let [t3 (.toDate (t/now))]
+        (is (core/is-entity-updated-since @conn t1 p-entid))
+        (is (core/is-entity-updated-since @conn t2 p-entid))
+        (is (not (core/is-entity-updated-since @conn t3 p-entid)))
+        @(d/transact @conn [{:db/id p-entid :user/name "Paully"}])
+        (let [t4 (.toDate (t/now))]
+          (is (core/is-entity-updated-since @conn t1 p-entid))
+          (is (core/is-entity-updated-since @conn t2 p-entid))
+          ; should still be 'no' after t3 because previous update made no
+          ; change to the value of our entity
+          (is (not (core/is-entity-updated-since @conn t3 p-entid)))
+          (is (not (core/is-entity-updated-since @conn t4 p-entid)))
+          @(d/transact @conn [{:db/id p-entid :user/name "Puh"}])
+          (let [t5 (.toDate (t/now))]
+            (is (core/is-entity-updated-since @conn t4 p-entid))
+            (is (not (core/is-entity-updated-since @conn t5 p-entid)))
+            @(d/transact @conn [{:db/id p-entid :user/name "Paul"}])
+            (let [t6 (.toDate (t/now))]
+              (is (core/is-entity-updated-since @conn t5 p-entid))
+              (is (not (core/is-entity-updated-since @conn t6 p-entid))))))))))
+
+(deftest Is-Entity-Deleted-Since
+  (testing "is-entity-deleted-since"
+    (is (not (core/is-entity-deleted-since @conn (.toDate (t/now)) 2091234)))
+    (let [t1 (.toDate (t/now))
+          p-entid (core/save-new-entity @conn
+                                        (save-new-user-txnmap user-partition
+                                                              {:user/name "Paul"
+                                                               :user/email "paul@ex.com"}))
+          t2 (.toDate (t/now))]
+      (is (not (core/is-entity-deleted-since @conn t1 p-entid)))
+      @(d/transact @conn [[:db.fn/retractEntity p-entid]])
+      (let [t3 (.toDate (t/now))]
+        (is (core/is-entity-deleted-since @conn t2 p-entid))
+        (is (not (core/is-entity-deleted-since @conn t3 p-entid)))))))
+
+(deftest Change-Log-Since
+  (testing "change-log-since functionality"
+    (let [t1 (.toDate (t/now))
+          cl (core/change-log-since @conn t1 :user/email "paul@ex.com" identity identity)]
+      (is (= 0 (count (:deletions cl))))
+      (is (= 0 (count (:updates cl))))
       (let [p-entid (core/save-new-entity @conn
                                           (save-new-user-txnmap user-partition
                                                                 {:user/name "Paul"
                                                                  :user/email "paul@ex.com"}))
+            t2 (.toDate (t/now))
             d-entid (core/save-new-entity @conn
                                           (save-new-user-txnmap user-partition
                                                                 {:user/name "Dave"
                                                                  :user/email "dave@ex.com"}))
-            cl (core/change-log @conn t1 :user/email "paul@ex.com" identity identity)]
+            cl (core/change-log-since @conn t1 :user/email "paul@ex.com" identity identity)
+            cl-2 (core/change-log-since @conn t2 :user/email "paul@ex.com" identity identity)
+            cl-3 (core/change-log-since @conn t2 :user/email "dave@ex.com" identity identity)
+            t3 (.toDate (t/now))
+            cl-4 (core/change-log-since @conn t3 :user/email "dave@ex.com" identity identity)]
         (is (= 0 (count (:deletions cl))))
         (is (= 1 (count (:updates cl))))
-        (let [cl (core/change-log @conn t1 :user/email "dave@ex.com" identity identity)
-              cl-2 (core/change-log @conn t1 :order/user p-entid identity identity)]
+        (is (= 0 (count (:deletions cl-2))))
+        (is (= 0 (count (:updates cl-2))))
+        (is (= 0 (count (:deletions cl-3))))
+        (is (= 1 (count (:updates cl-3))))
+        (is (= 0 (count (:deletions cl-4))))
+        (is (= 0 (count (:updates cl-4))))
+        (let [cl (core/change-log-since @conn t1 :user/email "dave@ex.com" identity identity)
+              cl-2 (core/change-log-since @conn t1 :order/user p-entid identity identity)]
           (is (= 0 (count (:deletions cl))))
           (is (= 1 (count (:updates cl))))
           (is (= 0 (count (:deletions cl-2))))
@@ -98,15 +156,15 @@
                                                                        p-entid
                                                                        {:order/user p-entid
                                                                         :order/name "Paul's order 1"}))]
-            (let [cl (core/change-log @conn t1 :order/user p-entid identity identity)]
+            (let [cl (core/change-log-since @conn t1 :order/user p-entid identity identity)]
               (is (= 0 (count (:deletions cl))))
               (is (= 1 (count (:updates cl))))
               @(d/transact @conn [{:db/id p-order-1
                                    :order/name "Paul's updated order 1"}])
-              (let [cl (core/change-log @conn t1 :order/user p-entid identity identity)]
+              (let [cl (core/change-log-since @conn t1 :order/user p-entid identity identity)]
                 (is (= 0 (count (:deletions cl))))
                 (is (= 1 (count (:updates cl))))
                 @(d/transact @conn [[:db.fn/retractEntity p-order-1]])
-                (let [cl (core/change-log @conn t1 :order/user p-entid identity identity)]
+                (let [cl (core/change-log-since @conn t1 :order/user p-entid identity identity)]
                   (is (= 1 (count (:deletions cl))))
                   (is (= 0 (count (:updates cl)))))))))))))

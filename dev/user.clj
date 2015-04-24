@@ -35,6 +35,8 @@
 (defn refresh-db
   []
   (do
+    (d/delete-database datomic-db-uri)
+    (Thread/sleep 60000)
     (d/create-database datomic-db-uri)
     (let [conn (d/connect datomic-db-uri)]
       (core/transact-schema-files conn ["user-schema.dtm"])

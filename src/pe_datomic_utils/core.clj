@@ -106,13 +106,13 @@
     (when (> (count results) 0)
       (ffirst results))))
 
-(defn datoms-of-attrs-as-of
+(defn datoms-of-attrs-since
   "Returns the datoms from the log where each datom's entity id matches entid
   and its attribute entity ID is of an attribute entity ID belonging to attrs,
-  and with a transaction date as of as-of-inst."
-  [conn entid attrs as-of-inst]
+  and with a transaction date as of since-inst."
+  [conn entid attrs since-inst]
   (let [attr-entids (map #(entity-id-for-schema-attribute conn %) attrs)]
-    (let [txns (->> (seq (d/tx-range (d/log conn) as-of-inst nil))
+    (let [txns (->> (seq (d/tx-range (d/log conn) since-inst nil))
                     (reduce (fn [txns txn]
                               (let [{datums :data} txn]
                                 (concat txns
@@ -122,13 +122,13 @@
                             []))]
       [txns attr-entids])))
 
-(defn entities-of-attrs-as-of
+(defn entities-of-attrs-since
   "Returns the set of entity IDs (including retracted ones) that contains at
-  least one attribute from attrs, and exists as of as-of-inst."
-  [conn attrs as-of-inst]
+  least one attribute from attrs, and exists as of since-inst."
+  [conn attrs since-inst]
   (let [db (d/db conn)
         attr-entids (map #(entity-id-for-schema-attribute conn %) attrs)]
-    (let [txns (->> (seq (d/tx-range (d/log conn) as-of-inst nil))
+    (let [txns (->> (seq (d/tx-range (d/log conn) since-inst nil))
                     (reduce (fn [txns txn]
                               (let [{datums :data} txn]
                                 (concat txns
@@ -139,17 +139,17 @@
                 (d/entid db entid))
               (distinct (map #(.e %) txns))))))
 
-(defn entities-updated-as-of
+(defn entities-updated-since
   "Returns the set of entity IDs that contain the attribute reqd-attr, and exist
-  as of as-of-inst.  If transform-fn is supplied, it will be applied against
+  since since-inst.  If transform-fn is supplied, it will be applied against
   each found entity."
   ([conn
-    as-of-inst
+    since-inst
     reqd-attr
     reqd-attr-val]
-   (entities-updated-as-of conn as-of-inst reqd-attr reqd-attr-val nil))
+   (entities-updated-since conn since-inst reqd-attr reqd-attr-val nil))
   ([conn
-    as-of-inst
+    since-inst
     reqd-attr
     reqd-attr-val
     transform-fn]
@@ -160,7 +160,7 @@
                  :where [(tx-ids ?log ?t1 nil) [?tx ...]]
                         [(tx-data ?log ?tx) [[?e _ _ _ ?op]]]
                         [$ ?e ?reqd-attr ?reqd-attr-val]]
-           results (d/q qry log as-of-inst reqd-attr reqd-attr-val db)]
+           results (d/q qry log since-inst reqd-attr reqd-attr-val db)]
        (when (> (count results) 0)
          (->>
           (remove nil?
@@ -173,11 +173,25 @@
                        results))
           (distinct)))))))
 
-(defn are-attributes-retracted-as-of
+(defn is-entity-updated-since
+  [conn since-inst entid]
+  (let [db (d/db conn)
+        since-entity (into {} (d/entity (d/since db since-inst) entid))]
+    (and (not (empty? since-entity))
+         (not= (into {} (d/entity (d/as-of db since-inst) entid))
+               since-entity))))
+
+(defn is-entity-deleted-since
+  [conn since-inst entid]
+  (let [db (d/db conn)]
+    (and (not (empty? (into {} (d/entity (d/as-of db since-inst) entid))))
+         (empty? (into {} (d/entity (d/since db since-inst) entid))))))
+
+(defn are-attributes-retracted-since
   "Returns true if the entity with ID entid has attributes attrs all retracted
-  as of as-of-inst.  Otherwise returns false."
-  [conn entid attrs as-of-inst]
-  (let [[datoms attr-entids] (datoms-of-attrs-as-of conn entid attrs as-of-inst)
+  as of since-inst.  Otherwise returns false."
+  [conn entid attrs since-inst]
+  (let [[datoms attr-entids] (datoms-of-attrs-since conn entid attrs since-inst)
         db (d/db conn)]
     (every? identity
             (map (fn [attr-entid]
@@ -194,10 +208,10 @@
                        (not (.added last-datom)))))
                  attr-entids))))
 
-(defn change-log
+(defn change-log-since
   "Returns a map with 2 keys: :updates and :deletions.  The value at each key is
   a vector of entities that have either been updated (add/update) or deleted as
-  of as-of-inst.  Each vector contains a collection of entries as maps.
+  of since-inst.  Each vector contains a collection of entries as maps.
   filter-fn will be invoked for each candidate entity and will return a boolean
   indicating if it should be included in the final set. The parameters
   updated-entry-maker-fn and deleted-entry-maker-fn are used to construct the
@@ -207,22 +221,22 @@
   populated Datomic entity, and is to return a map.  Updates and deletions of
   entities containing reqd-attr will be included in the computation."
   [conn
-   as-of-inst
+   since-inst
    reqd-attr
    reqd-attr-val
    updated-entry-maker-fn
    deleted-entry-maker-fn]
-  {:updates (entities-updated-as-of conn
-                                    as-of-inst
+  {:updates (entities-updated-since conn
+                                    since-inst
                                     reqd-attr
                                     reqd-attr-val
                                     updated-entry-maker-fn)
-   :deletions (let [ent-ids (entities-of-attrs-as-of conn [reqd-attr] as-of-inst)]
+   :deletions (let [ent-ids (entities-of-attrs-since conn [reqd-attr] since-inst)]
                 (reduce (fn [deleted-entities ent-id]
-                          (let [is-deleted (are-attributes-retracted-as-of conn
+                          (let [is-deleted (are-attributes-retracted-since conn
                                                                            ent-id
                                                                            [reqd-attr]
-                                                                           as-of-inst)]
+                                                                           since-inst)]
                             (if is-deleted
                               (conj deleted-entities
                                     (deleted-entry-maker-fn {:db/id ent-id}))
