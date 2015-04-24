@@ -69,7 +69,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Tests
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-(deftest Is-Entity-Updated-Since
+#_(deftest Is-Entity-Updated-Since
   (testing "is-entity-updated-since"
     (is (not (core/is-entity-updated-since @conn (.toDate (t/now)) 2091234)))
     (let [t1 (.toDate (t/now))
@@ -102,7 +102,7 @@
               (is (core/is-entity-updated-since @conn t5 p-entid))
               (is (not (core/is-entity-updated-since @conn t6 p-entid))))))))))
 
-(deftest Is-Entity-Deleted-Since
+#_(deftest Is-Entity-Deleted-Since
   (testing "is-entity-deleted-since"
     (is (not (core/is-entity-deleted-since @conn (.toDate (t/now)) 2091234)))
     (let [t1 (.toDate (t/now))
@@ -117,7 +117,7 @@
         (is (core/is-entity-deleted-since @conn t2 p-entid))
         (is (not (core/is-entity-deleted-since @conn t3 p-entid)))))))
 
-(deftest Change-Log-Since
+#_(deftest Change-Log-Since
   (testing "change-log-since functionality"
     (let [t1 (.toDate (t/now))
           cl (core/change-log-since @conn t1 :user/email "paul@ex.com" identity identity)]
