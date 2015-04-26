@@ -155,7 +155,7 @@
     transform-fn]
    (let [db (d/db conn)
          log (d/log conn)]
-     (let [qry '[:find ?e ?op
+     (let [qry '[:find ?e ?tx ?op
                  :in ?log ?t1 ?reqd-attr ?reqd-attr-val $
                  :where [(tx-ids ?log ?t1 nil) [?tx ...]]
                         [(tx-data ?log ?tx) [[?e _ _ _ ?op]]]
@@ -166,7 +166,9 @@
           (remove nil?
                   (map (fn [result-tuple]
                          (let [entid (first result-tuple)
-                               entity (into {:db/id entid} (d/entity db entid))]
+                               tx-entid (second result-tuple)
+                               entity (-> (into {:db/id entid} (d/entity db entid))
+                                          (assoc :last-modified (:db/txInstant (d/entity db tx-entid))))]
                            (if transform-fn
                              (transform-fn entity)
                              entity)))
