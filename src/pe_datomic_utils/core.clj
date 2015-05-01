@@ -175,20 +175,6 @@
                        results))
           (distinct)))))))
 
-(defn is-entity-updated-since
-  [conn since-inst entid]
-  (let [db (d/db conn)
-        since-entity (into {} (d/entity (d/since db since-inst) entid))]
-    (and (not (empty? since-entity))
-         (not= (into {} (d/entity (d/as-of db since-inst) entid))
-               since-entity))))
-
-(defn is-entity-deleted-since
-  [conn since-inst entid]
-  (let [db (d/db conn)]
-    (and (not (empty? (into {} (d/entity (d/as-of db since-inst) entid))))
-         (empty? (into {} (d/entity (d/since db since-inst) entid))))))
-
 (defn are-attributes-retracted-since
   "Returns true if the entity with ID entid has attributes attrs all retracted
   as of since-inst.  Otherwise returns false."
@@ -209,6 +195,20 @@
                      (when last-datom
                        (not (.added last-datom)))))
                  attr-entids))))
+
+(defn is-entity-updated-since
+  [conn since-inst entid]
+  (let [db (d/db conn)
+        since-entity (into {} (d/entity (d/since db since-inst) entid))]
+    (and (not (empty? since-entity))
+         (not= (into {} (d/entity (d/as-of db since-inst) entid))
+               since-entity))))
+
+(defn is-entity-deleted-since
+  [conn since-inst entid]
+  (let [db (d/db conn)]
+    (and (not (empty? (into {} (d/entity (d/as-of db since-inst) entid))))
+         (empty? (into {} (d/entity (d/since db since-inst) entid))))))
 
 (defn change-log-since
   "Returns a map with 2 keys: :updates and :deletions.  The value at each key is
