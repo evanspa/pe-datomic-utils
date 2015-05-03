@@ -26,7 +26,7 @@ pe-datomic-utils is available from Clojars.  Add the following dependency to you
 `project.clj` file:
 
 ```
-[pe-datomic-utils "0.0.16"]
+[pe-datomic-utils "0.0.17"]
 ```
 
 ## pe-* Clojure Library Suite

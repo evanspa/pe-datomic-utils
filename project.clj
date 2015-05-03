@@ -18,7 +18,7 @@
                                org.slf4j/slf4j-log4j12]]]
   :resource-paths ["resources"]
   :codox {:exclude [user]
-          :src-dir-uri "https://github.com/evanspa/pe-datomic-utils/blob/0.0.16/"
+          :src-dir-uri "https://github.com/evanspa/pe-datomic-utils/blob/0.0.17/"
           :src-linenum-anchor-prefix "L"}
   :profiles {:dev {:source-paths ["dev"]  ;ensures 'user.clj' gets auto-loaded
                    :plugins [[cider/cider-nrepl "0.9.0-SNAPSHOT"]]

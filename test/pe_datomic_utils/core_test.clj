@@ -127,6 +127,7 @@
                                           (save-new-user-txnmap user-partition
                                                                 {:user/name "Paul"
                                                                  :user/email "paul@ex.com"}))
+            p-lm (core/txn-time @conn p-entid)
             t2 (.toDate (t/now))
             d-entid (core/save-new-entity @conn
                                           (save-new-user-txnmap user-partition

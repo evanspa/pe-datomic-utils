@@ -6,17 +6,24 @@
             [clojure.tools.logging :as log]))
 
 (defn txn-time
-  "Returns the transaction time (instance) of the given entity e.  attr needs to
-  be any attribute of the entity."
-  [conn e attr]
-  (ffirst (q '[:find ?tx-time
-               :in $ ?e ?a
-               :where
-               [$ ?e ?a _ ?tx]
-               [$ ?tx :db/txInstant ?tx-time]]
-             (db conn)
-             e
-             attr)))
+  "Returns the transaction time (instance) of the given entity e."
+  ([conn e]
+   (txn-time conn e nil))
+  ([conn e since-inst]
+   (let [db (if since-inst
+              (d/since (db conn) since-inst)
+              (db conn))
+         results (->> (q '[:find ?tx-time
+                           :in $ ?e
+                           :where
+                           [$ ?e _ _ ?tx]
+                           [$ ?tx :db/txInstant ?tx-time]]
+                         db
+                         e)
+                      (sort-by first
+                               #(compare %2 %1)))]
+     (when (> (count results) 0)
+       (ffirst results)))))
 
 (defn save-new-entity
   "Transacts txnmap using conn and returns the generated entity id."
@@ -106,22 +113,6 @@
     (when (> (count results) 0)
       (ffirst results))))
 
-(defn datoms-of-attrs-since
-  "Returns the datoms from the log where each datom's entity id matches entid
-  and its attribute entity ID is of an attribute entity ID belonging to attrs,
-  and with a transaction date as of since-inst."
-  [conn entid attrs since-inst]
-  (let [attr-entids (map #(entity-id-for-schema-attribute conn %) attrs)]
-    (let [txns (->> (seq (d/tx-range (d/log conn) since-inst nil))
-                    (reduce (fn [txns txn]
-                              (let [{datums :data} txn]
-                                (concat txns
-                                        (filter #(and (some #{(.a %)} attr-entids)
-                                                      (= (.e %) entid))
-                                                datums))))
-                            []))]
-      [txns attr-entids])))
-
 (defn entities-of-attrs-since
   "Returns the set of entity IDs (including retracted ones) that contains at
   least one attribute from attrs, and exists as of since-inst."
@@ -154,47 +145,55 @@
     reqd-attr-val
     transform-fn]
    (let [db (d/db conn)
-         log (d/log conn)]
-     (let [qry '[:find ?e ?tx ?op
-                 :in ?log ?t1 ?reqd-attr ?reqd-attr-val $
-                 :where [(tx-ids ?log ?t1 nil) [?tx ...]]
-                        [(tx-data ?log ?tx) [[?e _ _ _ ?op]]]
-                        [$ ?e ?reqd-attr ?reqd-attr-val]]
-           results (d/q qry log since-inst reqd-attr reqd-attr-val db)]
-       (when (> (count results) 0)
-         (->>
-          (remove nil?
-                  (map (fn [result-tuple]
-                         (let [entid (first result-tuple)
-                               tx-entid (second result-tuple)
-                               entity (-> (into {:db/id entid} (d/entity db entid))
-                                          (assoc :last-modified (:db/txInstant (d/entity db tx-entid))))]
-                           (if transform-fn
-                             (transform-fn entity)
-                             entity)))
-                       results))
-          (distinct)))))))
+         log (d/log conn)
+         qry '[:find ?e ?tx ?op
+               :in ?log ?t1 ?reqd-attr ?reqd-attr-val $
+               :where [(tx-ids ?log ?t1 nil) [?tx ...]]
+                      [(tx-data ?log ?tx) [[?e _ _ _ ?op]]]
+                      [$ ?e ?reqd-attr ?reqd-attr-val]]
+         results (d/q qry log since-inst reqd-attr reqd-attr-val db)
+         assoc-item-fn #(if transform-fn
+                          (assoc %1 %2 (transform-fn %3))
+                          (assoc %1 %2 %3))]
+     (when (> (count results) 0)
+       (reduce (fn [results-m result-tuple]
+                 (let [entid (first result-tuple)
+                       tx-entid (second result-tuple)
+                       entity (-> (into {:db/id entid} (d/entity db entid))
+                                  (assoc :last-modified (:db/txInstant (d/entity db tx-entid))))
+                       entity-id (:db/id entity)
+                       existing-m-item (get results-m entity-id)]
+                   (if existing-m-item
+                     (if (= (compare (:last-modified entity) (:last-modified existing-m-item)) 1)
+                       (assoc-item-fn results-m entity-id entity)
+                       results-m)
+                     (assoc-item-fn results-m entity-id entity))))
+               {}
+               results)))))
+
+(defn is-attribute-retracted-since
+  [conn entid attr since-inst]
+  (let [db (d/db conn)
+        results (->> (d/q '[:find ?added ?tx-inst
+                            :in $ ?e ?a
+                            :where [$ ?e ?a _ ?tx ?added]
+                                   [$ ?tx :db/txInstant ?tx-inst]]
+                          (d/since (d/history db) since-inst)
+                          entid
+                          attr)
+                     (sort-by second
+                              #(compare %2 %1)))]
+    (and (> (count results) 0)
+         (not (ffirst results)))))
 
 (defn are-attributes-retracted-since
   "Returns true if the entity with ID entid has attributes attrs all retracted
   as of since-inst.  Otherwise returns false."
   [conn entid attrs since-inst]
-  (let [[datoms attr-entids] (datoms-of-attrs-since conn entid attrs since-inst)
-        db (d/db conn)]
-    (every? identity
-            (map (fn [attr-entid]
-                   (let [datoms (filter #(= (.a %) attr-entid) datoms)
-                         datoms (sort (fn [d1 d2]
-                                        (let [tx-inst-1 (:db/txInstant (d/entity db (.tx d1)))
-                                              tx-inst-2 (:db/txInstant (d/entity db (.tx d2)))]
-                                          (if (= tx-inst-1 tx-inst-2)
-                                            (compare (.added d1) (.added d2))
-                                            (compare tx-inst-1 tx-inst-2))))
-                                      datoms)
-                         last-datom (last datoms)]
-                     (when last-datom
-                       (not (.added last-datom)))))
-                 attr-entids))))
+  (reduce #(and %1
+                (when %1 (is-attribute-retracted-since conn entid %2 since-inst)))
+          true
+          attrs))
 
 (defn is-entity-updated-since
   [conn since-inst entid]

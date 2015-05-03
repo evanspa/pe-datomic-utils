@@ -1,41 +1,58 @@
 <!-- Logback configuration. See http://logback.qos.ch/manual/index.html -->
-<configuration scan="true" scanPeriod="10 seconds" debug="true">
+<configuration scan="false" debug="true">
 
-  <!-- Simple file output -->
-  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+  <appender name="DU-FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
     <!-- encoder defaults to ch.qos.logback.classic.encoder.PatternLayoutEncoder -->
-    <encoder>
-      <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
-    </encoder>
-
+    <encoder><pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern></encoder>
     <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
       <!-- rollover daily -->
-      <fileNamePattern>logs/pe-datomic-utils-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-      <timeBasedFileNamingAndTriggeringPolicy
-          class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
-        <!-- or whenever the file size reaches 64 MB -->
+      <fileNamePattern>logs/dutils-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+      <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
         <maxFileSize>64 MB</maxFileSize>
       </timeBasedFileNamingAndTriggeringPolicy>
     </rollingPolicy>
-
-    <!-- Safely log to the same file from multiple JVMs. Degrades performance! -->
-    <prudent>true</prudent>
+    <!-- "true" to safely log to the same file from multiple JVMs. Degrades performance! -->
+    <prudent>false</prudent>
   </appender>
 
-  <!-- Console output -->
+  <appender name="DATOMIC-FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <encoder><pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern></encoder>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>logs/datomic-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+      <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+        <maxFileSize>64 MB</maxFileSize>
+      </timeBasedFileNamingAndTriggeringPolicy>
+    </rollingPolicy>
+    <prudent>false</prudent>
+  </appender>
+
+  <appender name="CATCHALL-FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <encoder><pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern></encoder>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>logs/catchall-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+      <timeBasedFileNamingAndTriggeringPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP">
+        <maxFileSize>64 MB</maxFileSize>
+      </timeBasedFileNamingAndTriggeringPolicy>
+    </rollingPolicy>
+    <prudent>false</prudent>
+  </appender>
+
   <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
-    <!-- encoder defaults to ch.qos.logback.classic.encoder.PatternLayoutEncoder -->
-    <encoder>
-      <pattern>%-5level %logger{36} - %msg%n</pattern>
-    </encoder>
-    <!-- Only log level INFO and above -->
-    <filter class="ch.qos.logback.classic.filter.ThresholdFilter">
-      <level>INFO</level>
-    </filter>
+    <encoder><pattern>%-5level %logger{36} - %msg%n</pattern></encoder>
   </appender>
 
   <root level="DEBUG">
-    <appender-ref ref="FILE" />
+    <appender-ref ref="CATCHALL-FILE" />
     <appender-ref ref="STDOUT" />
   </root>
+
+  <logger name="datomic" level="DEBUG">
+    <appender-ref ref="DATOMIC-FILE" />
+    <appender-ref ref="STDOUT" />
+  </logger>
+
+  <logger name="pe-datomic-utils" level="DEBUG">
+    <appender-ref ref="DU-FILE" />
+    <appender-ref ref="STDOUT" />
+  </logger>
 </configuration>
