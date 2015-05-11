@@ -3,25 +3,26 @@
             [clojure.pprint :refer [pprint]]
             [clojure.java.io :refer [resource]]))
 
-(def postgresql-user "datomic")
-(def postgresql-password "datomic")
-(def postgresql-db-name "datomic")
-(def postgresql-server "localhost")
-(def postgresql-port "5432")
+;; (def postgresql-user "datomic")
+;; (def postgresql-password "datomic")
+;; (def postgresql-db-name "datomic")
+;; (def postgresql-server "localhost")
+;; (def postgresql-port "5432")
+;; (def db-uri
+;;   (str "datomic:sql://"
+;;        "testing" ;db-name
+;;        "?jdbc:postgresql://"
+;;        postgresql-server
+;;        ":"
+;;        postgresql-port
+;;        "/"
+;;        postgresql-db-name
+;;        "?user="
+;;        postgresql-user
+;;        "&password="
+;;        postgresql-password))
 
-(def db-uri
-  (str "datomic:sql://"
-       "testing" ;db-name
-       "?jdbc:postgresql://"
-       postgresql-server
-       ":"
-       postgresql-port
-       "/"
-       postgresql-db-name
-       "?user="
-       postgresql-user
-       "&password="
-       postgresql-password))
+(def db-uri "datomic:mem://dev")
 
 ;(def db-name-postfix-num (atom 0))
 

@@ -24,7 +24,7 @@
     (reset! conn
             (do
               (d/delete-database db-uri)
-              (Thread/sleep 60000) ; wait 60 seconds
+              ;(Thread/sleep 60000) ; wait 60 seconds
               (d/create-database db-uri)
               (let [conn (d/connect db-uri)]
                 (core/transact-schema-files conn schema-files)
@@ -102,20 +102,20 @@
               (is (core/is-entity-updated-since @conn t5 p-entid))
               (is (not (core/is-entity-updated-since @conn t6 p-entid))))))))))
 
-#_(deftest Is-Entity-Deleted-Since
-  (testing "is-entity-deleted-since"
-    (is (not (core/is-entity-deleted-since @conn (.toDate (t/now)) 2091234)))
+#_(deftest Is-Entity-Deleted-As-Of
+  (testing "is-entity-deleted-as-of"
+    (is (core/is-entity-deleted-as-of @conn (.toDate (t/now)) 2091234))
     (let [t1 (.toDate (t/now))
           p-entid (core/save-new-entity @conn
                                         (save-new-user-txnmap user-partition
                                                               {:user/name "Paul"
                                                                :user/email "paul@ex.com"}))
           t2 (.toDate (t/now))]
-      (is (not (core/is-entity-deleted-since @conn t1 p-entid)))
+      (is (not (core/is-entity-deleted-as-of @conn t1 p-entid)))
       @(d/transact @conn [[:db.fn/retractEntity p-entid]])
       (let [t3 (.toDate (t/now))]
-        (is (core/is-entity-deleted-since @conn t2 p-entid))
-        (is (not (core/is-entity-deleted-since @conn t3 p-entid)))))))
+        (is (not (core/is-entity-deleted-as-of @conn t2 p-entid)))
+        (is (core/is-entity-deleted-as-of @conn t3 p-entid))))))
 
 #_(deftest Change-Log-Since
   (testing "change-log-since functionality"

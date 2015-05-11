@@ -20,8 +20,7 @@
                            [$ ?tx :db/txInstant ?tx-time]]
                          db
                          e)
-                      (sort-by first
-                               #(compare %2 %1)))]
+                      (sort-by first #(compare %2 %1)))]
      (when (> (count results) 0)
        (ffirst results)))))
 
@@ -161,15 +160,32 @@
                        tx-entid (second result-tuple)
                        entity (-> (into {:db/id entid} (d/entity db entid))
                                   (assoc :last-modified (:db/txInstant (d/entity db tx-entid))))
-                       entity-id (:db/id entity)
-                       existing-m-item (get results-m entity-id)]
+                       existing-m-item (get results-m entid)]
                    (if existing-m-item
                      (if (= (compare (:last-modified entity) (:last-modified existing-m-item)) 1)
-                       (assoc-item-fn results-m entity-id entity)
+                       (assoc-item-fn results-m entid entity)
                        results-m)
-                     (assoc-item-fn results-m entity-id entity))))
+                     (assoc-item-fn results-m entid entity))))
                {}
                results)))))
+
+(defn entities-updated-since-2
+  ([conn
+    since-inst
+    reqd-attr
+    reqd-attr-val]
+   (entities-updated-since conn since-inst reqd-attr reqd-attr-val nil))
+  ([conn
+    since-inst
+    reqd-attr
+    reqd-attr-val
+    transform-fn]
+   (let [qry '[:find ?e
+               :in $ ?a ?v
+               :where [$ ?e ?a ?v ?tx ?added]]]
+
+     )
+   ))
 
 (defn is-attribute-retracted-since
   [conn entid attr since-inst]
@@ -203,11 +219,10 @@
          (not= (into {} (d/entity (d/as-of db since-inst) entid))
                since-entity))))
 
-(defn is-entity-deleted-since
-  [conn since-inst entid]
+(defn is-entity-deleted-as-of
+  [conn as-of-inst entid]
   (let [db (d/db conn)]
-    (and (not (empty? (into {} (d/entity (d/as-of db since-inst) entid))))
-         (empty? (into {} (d/entity (d/since db since-inst) entid))))))
+    (empty? (into {} (d/entity (d/as-of db as-of-inst) entid)))))
 
 (defn change-log-since
   "Returns a map with 2 keys: :updates and :deletions.  The value at each key is

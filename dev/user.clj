@@ -12,31 +12,32 @@
             [clojure.java.io :refer [resource]]
             [clojure.tools.namespace.repl :refer (refresh refresh-all)]))
 
-(def postgresql-user "datomic")
-(def postgresql-password "datomic")
-(def postgresql-db-name "datomic")
-(def postgresql-server "localhost")
-(def postgresql-port "5432")
+;; (def postgresql-user "datomic")
+;; (def postgresql-password "datomic")
+;; (def postgresql-db-name "datomic")
+;; (def postgresql-server "localhost")
+;; (def postgresql-port "5432")
+;; (def datomic-db-name "testing")
+;; (def datomic-db-uri (str "datomic:sql://"
+;;                          datomic-db-name
+;;                          "?jdbc:postgresql://"
+;;                          postgresql-server
+;;                          ":"
+;;                          postgresql-port
+;;                          "/"
+;;                          postgresql-db-name
+;;                          "?user="
+;;                          postgresql-user
+;;                          "&password="
+;;                          postgresql-password))
 
-(def datomic-db-name "testing")
-(def datomic-db-uri (str "datomic:sql://"
-                         datomic-db-name
-                         "?jdbc:postgresql://"
-                         postgresql-server
-                         ":"
-                         postgresql-port
-                         "/"
-                         postgresql-db-name
-                         "?user="
-                         postgresql-user
-                         "&password="
-                         postgresql-password))
+(def datomic-db-uri "datomic:mem://dev")
 
 (defn refresh-db
   []
   (do
     (d/delete-database datomic-db-uri)
-    (Thread/sleep 60000)
+    ;(Thread/sleep 60000)
     (d/create-database datomic-db-uri)
     (let [conn (d/connect datomic-db-uri)]
       (core/transact-schema-files conn ["user-schema.dtm"])
@@ -52,6 +53,7 @@
         future @(d/transact conn
                             [{:db/id user-entid
                               :user/name "Paul"
+                              :user/some-id "aaa"
                               :user/email "paul@example.com"}])]
     (d/resolve-tempid (d/db conn) (:tempids future) user-entid)))
 
@@ -61,6 +63,7 @@
         future @(d/transact conn
                             [{:db/id user-entid
                               :user/name "Dave"
+                              :user/some-id "aaa"
                               :user/email "Dave@example.com"}])]
     (d/resolve-tempid (d/db conn) (:tempids future) user-entid)))
 
